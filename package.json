@@ -1,0 +1,15 @@
+{
+  "name": "joseph-portfolio",
+  "version": "1.0.0",
+  "description": "Joseph Lugaho - Software Engineering Portfolio",
+  "main": "index.html",
+  "scripts": {
+    "build": "echo 'No build process needed for static site'"
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  },
+  "keywords": ["portfolio", "software engineer", "web developer"],
+  "author": "Joseph Malongo Lugaho",
+  "license": "MIT"
+}
