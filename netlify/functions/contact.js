@@ -1,7 +1,9 @@
-// netlify/functions/contact.js
+// netlify/functions/contact.js - DEBUG VERSION
 const fetch = require('node-fetch');
 
 exports.handler = async function(event, context) {
+    console.log('🚀 Contact function started');
+    
     if (event.httpMethod !== 'POST') {
         return {
             statusCode: 405,
@@ -29,15 +31,20 @@ exports.handler = async function(event, context) {
             };
         }
 
-        // Log the submission
         console.log('📧 New contact form submission:');
         console.log('Name:', name);
         console.log('Email:', email);
         console.log('Subject:', subject);
         console.log('Message:', message);
 
+        // Debug: Check if environment variables exist
+        console.log('🔧 Environment variables check:');
+        console.log('EMAILJS_SERVICE_ID exists:', !!process.env.EMAILJS_SERVICE_ID);
+        console.log('EMAILJS_TEMPLATE_ID exists:', !!process.env.EMAILJS_TEMPLATE_ID);
+        console.log('EMAILJS_USER_ID exists:', !!process.env.EMAILJS_USER_ID);
+
         // Send email notification
-        await sendEmailNotification({
+        const emailResult = await sendEmailNotification({
             name,
             email,
             subject,
@@ -45,6 +52,13 @@ exports.handler = async function(event, context) {
             ip: event.headers['client-ip'] || 'Unknown',
             timestamp: new Date().toISOString()
         });
+
+        if (emailResult.success) {
+            console.log('✅ Email notification sent successfully');
+        } else {
+            console.log('❌ Email notification failed:', emailResult.error);
+            // Don't fail the request - still return success to user
+        }
 
         return {
             statusCode: 200,
@@ -55,7 +69,7 @@ exports.handler = async function(event, context) {
         };
 
     } catch (error) {
-        console.error('Error processing form:', error);
+        console.error('💥 Error processing form:', error);
         return {
             statusCode: 500,
             body: JSON.stringify({ success: false, message: 'Internal server error. Please try again.' })
@@ -65,37 +79,57 @@ exports.handler = async function(event, context) {
 
 async function sendEmailNotification(formData) {
     try {
-        // Using EmailJS
+        console.log('📤 Attempting to send email via EmailJS...');
+        
+        // Verify we have all required environment variables
+        if (!process.env.EMAILJS_SERVICE_ID || 
+            !process.env.EMAILJS_TEMPLATE_ID || 
+            !process.env.EMAILJS_USER_ID) {
+            throw new Error('Missing EmailJS environment variables');
+        }
+
+        const emailData = {
+            service_id: process.env.EMAILJS_SERVICE_ID,
+            template_id: process.env.EMAILJS_TEMPLATE_ID,
+            user_id: process.env.EMAILJS_USER_ID,
+            template_params: {
+                from_name: formData.name,
+                from_email: formData.email,
+                subject: formData.subject,
+                message: formData.message,
+                to_email: 'jlugaho@asu.edu',
+                ip_address: formData.ip,
+                timestamp: formData.timestamp
+            }
+        };
+
+        console.log('📨 Sending to EmailJS with data:', {
+            service_id: process.env.EMAILJS_SERVICE_ID ? 'SET' : 'MISSING',
+            template_id: process.env.EMAILJS_TEMPLATE_ID ? 'SET' : 'MISSING',
+            user_id: process.env.EMAILJS_USER_ID ? 'SET' : 'MISSING'
+        });
+
         const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                service_id: process.env.EMAILJS_SERVICE_ID,
-                template_id: process.env.EMAILJS_TEMPLATE_ID,
-                user_id: process.env.EMAILJS_USER_ID,
-                template_params: {
-                    from_name: formData.name,
-                    from_email: formData.email,
-                    subject: formData.subject,
-                    message: formData.message,
-                    to_email: 'jlugaho@asu.edu',
-                    ip_address: formData.ip,
-                    timestamp: formData.timestamp
-                }
-            })
+            body: JSON.stringify(emailData)
         });
 
+        console.log('📩 EmailJS response status:', response.status);
+        
         if (response.ok) {
-            console.log('✅ Email notification sent successfully');
+            console.log('✅ EmailJS request successful');
             return { success: true };
         } else {
-            throw new Error(`Email failed: ${response.status}`);
+            const errorText = await response.text();
+            console.log('❌ EmailJS failed with status:', response.status, 'Response:', errorText);
+            throw new Error(`EmailJS API error: ${response.status} - ${errorText}`);
         }
 
     } catch (error) {
-        console.error('❌ Email notification failed:', error.message);
+        console.error('💥 Email notification error:', error.message);
         return { success: false, error: error.message };
     }
 }
